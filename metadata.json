@@ -1,0 +1,6 @@
+{
+  "name": "Karigar Setu",
+  "description": "AI-Driven Market Linkage and Smart Cataloging Platform for Artisans (SIH26090). Voice-first AI cataloging, smart pricing, image enhancement, and 26 Indian languages.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
