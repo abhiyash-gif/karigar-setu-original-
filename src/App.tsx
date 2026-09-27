@@ -1,7 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ViewTab, Product, BuyerEnquiry, ArtisanProfile, NotificationItem } from './types';
 import { INITIAL_PROFILE, INITIAL_NOTIFICATIONS, INITIAL_PRODUCTS, INITIAL_BUYER_ENQUIRIES } from './data/demoProducts';
 import { apiClient } from './services/apiClient';
+import { 
+  auth, 
+  signInWithGoogle, 
+  logOut, 
+  subscribeToAuth,
+  getFirestoreProducts,
+  saveFirestoreProduct,
+  deleteFirestoreProduct,
+  getFirestoreEnquiries,
+  saveFirestoreEnquiry,
+  updateFirestoreEnquiryStatus,
+  getFirestoreNotifications,
+  saveFirestoreNotification,
+  markAllFirestoreNotificationsRead,
+  getFirestoreArtisanProfile,
+  saveFirestoreArtisanProfile
+} from './services/firebase';
+import type { User as FirebaseUser } from 'firebase/auth';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
 import { DemoModeBar } from './components/DemoModeBar';
@@ -15,6 +33,9 @@ import { MarketLinkageView } from './views/MarketLinkageView';
 import { AssistantView } from './views/AssistantView';
 import { AnalyticsView } from './views/AnalyticsView';
 import { ProfileView } from './views/ProfileView';
+
+// Low-stock threshold definition
+export const LOW_STOCK_THRESHOLD = 5;
 
 // Helper to resolve route tab from URL hash/path
 function getTabFromUrl(): ViewTab {
@@ -40,7 +61,10 @@ export function App() {
   const [currentTab, setCurrentTab] = useState<ViewTab>(getTabFromUrl);
   const [currentLang, setCurrentLang] = useState<string>('en');
 
-  // Application Data States (API fetched)
+  // Firebase Authentication State
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+
+  // Application Data States (API / Firestore fetched)
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [enquiries, setEnquiries] = useState<BuyerEnquiry[]>([]);
@@ -52,6 +76,9 @@ export function App() {
   const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState<boolean>(false);
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState<boolean>(false);
   const [isSimulatingDemo, setIsSimulatingDemo] = useState<boolean>(false);
+
+  // Track low stock notifications already triggered in this session to prevent spam
+  const triggeredLowStockRef = useRef<Set<string>>(new Set());
 
   // Synchronize Tab with URL Hash & Browser History
   const navigateToTab = (tab: ViewTab) => {
@@ -89,19 +116,73 @@ export function App() {
     };
   }, []);
 
-  // Fetch initial data from backend
+  // Subscribe to Firebase Authentication
+  useEffect(() => {
+    const unsubscribe = subscribeToAuth(async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        try {
+          // Attempt to load user-specific data from Firestore
+          const [fsProducts, fsEnquiries, fsNotifs, fsProfile] = await Promise.all([
+            getFirestoreProducts(user.uid),
+            getFirestoreEnquiries(user.uid),
+            getFirestoreNotifications(user.uid),
+            getFirestoreArtisanProfile(user.uid),
+          ]);
+
+          if (fsProducts.length > 0) {
+            setProducts(fsProducts);
+          } else {
+            // Seed current products to Firestore for this newly signed-in artisan
+            INITIAL_PRODUCTS.forEach((p) => saveFirestoreProduct(p, user.uid));
+          }
+
+          if (fsEnquiries.length > 0) {
+            setEnquiries(fsEnquiries);
+          } else {
+            INITIAL_BUYER_ENQUIRIES.forEach((e) => saveFirestoreEnquiry(e, user.uid));
+          }
+
+          if (fsNotifs.length > 0) {
+            setNotifications(fsNotifs);
+          }
+
+          if (fsProfile) {
+            setProfile(fsProfile);
+          } else if (user.displayName) {
+            const updatedProfile: ArtisanProfile = {
+              ...INITIAL_PROFILE,
+              name: user.displayName,
+              profilePhoto: user.photoURL || INITIAL_PROFILE.profilePhoto,
+            };
+            setProfile(updatedProfile);
+            saveFirestoreArtisanProfile(updatedProfile, user.uid);
+          }
+        } catch (err) {
+          console.error('Error fetching Firestore user data:', err);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch initial data from backend (fallback / baseline)
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         const [fetchedProducts, fetchedDrafts, fetchedOrders] = await Promise.all([
           apiClient.getProducts(),
           apiClient.getDrafts(),
-          apiClient.getOrders()
+          apiClient.getOrders(),
         ]);
-        setProducts([...fetchedProducts, ...fetchedDrafts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        const combined = [...fetchedProducts, ...fetchedDrafts].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setProducts(combined);
         setEnquiries(fetchedOrders);
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error('Error fetching data from backend API:', err);
       } finally {
         setIsInitialLoad(false);
       }
@@ -109,12 +190,58 @@ export function App() {
     fetchInitialData();
   }, []);
 
+  // Automated Low-Stock Notification System
+  // Triggers a 'Restock Needed' alert in NotificationDrawer when a product's stock count drops below threshold
+  useEffect(() => {
+    if (products.length === 0) return;
+
+    const newRestockAlerts: NotificationItem[] = [];
+
+    products.forEach((prod) => {
+      if (typeof prod.stock === 'number' && prod.stock <= LOW_STOCK_THRESHOLD) {
+        const notifId = `restock-${prod.id}`;
+        const alreadyInState = notifications.some((n) => n.id === notifId);
+
+        if (!alreadyInState && !triggeredLowStockRef.current.has(notifId)) {
+          triggeredLowStockRef.current.add(notifId);
+          const alert: NotificationItem = {
+            id: notifId,
+            title: `Restock Needed: ${prod.name}`,
+            hindiTitle: `पुनर्भरण आवश्यक: ${prod.hindiName || prod.name}`,
+            message: `Stock for "${prod.name}" has dropped to ${prod.stock} ${prod.stock === 1 ? 'unit' : 'units'} (below threshold of ${LOW_STOCK_THRESHOLD}). Restock needed to fulfill incoming buyer enquiries.`,
+            time: 'Just now',
+            read: false,
+            type: 'restock',
+            actionUrl: 'products',
+            productId: prod.id,
+            stock: prod.stock,
+          };
+          newRestockAlerts.push(alert);
+
+          // If signed in, sync notification to Firestore
+          if (currentUser?.uid) {
+            saveFirestoreNotification(alert, currentUser.uid);
+          }
+        }
+      }
+    });
+
+    if (newRestockAlerts.length > 0) {
+      setNotifications((prev) => [...newRestockAlerts, ...prev]);
+    }
+  }, [products, currentUser]);
+
   // Handlers
   const handlePublishNewProduct = async (newProduct: Product) => {
     try {
       const { id } = await apiClient.createProduct(newProduct);
       const createdProduct = { ...newProduct, id };
       setProducts((prev) => [createdProduct, ...prev]);
+
+      // Sync to Firestore if user is authenticated
+      if (currentUser?.uid) {
+        await saveFirestoreProduct(createdProduct, currentUser.uid);
+      }
 
       // Push celebratory notification
       const newNotif: NotificationItem = {
@@ -128,6 +255,11 @@ export function App() {
         actionUrl: 'products',
       };
       setNotifications((prev) => [newNotif, ...prev]);
+
+      if (currentUser?.uid) {
+        saveFirestoreNotification(newNotif, currentUser.uid);
+      }
+
       navigateToTab('products');
     } catch (e) {
       console.error('Failed to publish product:', e);
@@ -136,13 +268,17 @@ export function App() {
 
   const handleDeleteProduct = async (id: string) => {
     try {
-      const prod = products.find(p => p.id === id);
+      const prod = products.find((p) => p.id === id);
       if (prod?.status === 'Draft') {
         await apiClient.deleteDraft(id);
       } else {
         await apiClient.deleteProduct(id);
       }
       setProducts((prev) => prev.filter((p) => p.id !== id));
+
+      if (currentUser?.uid) {
+        await deleteFirestoreProduct(id);
+      }
     } catch (e) {
       console.error('Failed to delete product:', e);
     }
@@ -159,11 +295,16 @@ export function App() {
         status: 'Draft',
         createdAt: new Date().toISOString().split('T')[0],
       };
-      
+
       const { id } = await apiClient.createDraft(duplicated);
       const fullDuplicated = { ...prod, ...duplicated, id } as Product;
-      
+
       setProducts((prev) => [fullDuplicated, ...prev]);
+
+      if (currentUser?.uid) {
+        await saveFirestoreProduct(fullDuplicated, currentUser.uid);
+      }
+
       navigateToTab('products');
     } catch (e) {
       console.error('Failed to duplicate product:', e);
@@ -176,13 +317,20 @@ export function App() {
       setEnquiries((prev) =>
         prev.map((e) => (e.id === id ? { ...e, status: newStatus } : e))
       );
+
+      if (currentUser?.uid) {
+        await updateFirestoreEnquiryStatus(id, newStatus);
+      }
     } catch (e) {
       console.error('Failed to update enquiry status:', e);
     }
   };
 
-  const handleMarkAllNotificationsRead = () => {
+  const handleMarkAllNotificationsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    if (currentUser?.uid) {
+      await markAllFirestoreNotificationsRead(currentUser.uid, notifications);
+    }
   };
 
   const handleResetDemo = async () => {
@@ -190,7 +338,25 @@ export function App() {
     setEnquiries(INITIAL_BUYER_ENQUIRIES);
     setProfile(INITIAL_PROFILE);
     setNotifications(INITIAL_NOTIFICATIONS);
+    triggeredLowStockRef.current.clear();
     navigateToTab('home');
+  };
+
+  const handleSignInGoogle = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      console.error('Google Sign In failed:', error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await logOut();
+      setCurrentUser(null);
+    } catch (error) {
+      console.error('Sign Out failed:', error);
+    }
   };
 
   // Interactive Guided Tour
@@ -236,6 +402,10 @@ export function App() {
         onOpenProfile={() => navigateToTab('profile')}
         onGoHome={() => navigateToTab('home')}
         profile={profile}
+        currentUser={currentUser}
+        onSignInGoogle={handleSignInGoogle}
+        onSignOut={handleSignOut}
+        isFirebaseConnected={true}
       />
 
       {/* 3. Main Responsive Layout with Navigation */}
@@ -306,6 +476,7 @@ export function App() {
             <AnalyticsView
               products={products}
               enquiries={enquiries}
+              profile={profile}
               currentLang={currentLang}
             />
           )}

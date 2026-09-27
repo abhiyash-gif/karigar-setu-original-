@@ -85,8 +85,10 @@ export interface NotificationItem {
   message: string;
   time: string;
   read: boolean;
-  type: 'order' | 'enquiry' | 'listing' | 'tip' | 'pricing';
+  type: 'order' | 'enquiry' | 'listing' | 'tip' | 'pricing' | 'restock';
   actionUrl?: string;
+  productId?: string;
+  stock?: number;
 }
 
 export interface LanguageInfo {

@@ -3,6 +3,7 @@ import { Product, ViewTab } from '../types';
 import { getTranslation } from '../i18n/translations';
 import { apiClient } from '../services/apiClient';
 import { aiService, CatalogGenerationResult } from '../services/aiService';
+import { AIPricingTool } from '../components/AIPricingTool';
 import { SAMPLE_CRAFT_PRESETS } from '../data/demoProducts';
 import { useHindiVoiceRecognition } from '../hooks/useHindiVoiceRecognition';
 import confetti from 'canvas-confetti';
@@ -129,6 +130,31 @@ export const AddProductWorkflow: React.FC<AddProductWorkflowProps> = ({
   const [labourHoursInput, setLabourHoursInput] = useState<number>(18);
   const [hourlyWageInput, setHourlyWageInput] = useState<number>(65);
   const [otherCostInput, setOtherCostInput] = useState<number>(160);
+
+  const handleApplyPricing = (pricing: {
+    recommendedPrice: number;
+    priceRange: { min: number; max: number };
+    materialCost: number;
+    labourHours: number;
+    hourlyWage: number;
+    otherCost: number;
+    rationale: string;
+  }) => {
+    setCatalogData((prev) => ({
+      ...prev,
+      recommendedPrice: pricing.recommendedPrice,
+      priceRange: pricing.priceRange,
+      materialCost: pricing.materialCost,
+      labourHours: pricing.labourHours,
+      hourlyRate: pricing.hourlyWage,
+      otherCost: pricing.otherCost,
+      pricingRationale: pricing.rationale,
+    }));
+    setMaterialCostInput(pricing.materialCost);
+    setLabourHoursInput(pricing.labourHours);
+    setHourlyWageInput(pricing.hourlyWage);
+    setOtherCostInput(pricing.otherCost);
+  };
 
   useEffect(() => {
     const fetchDraft = async () => {
@@ -1258,148 +1284,42 @@ export const AddProductWorkflow: React.FC<AddProductWorkflowProps> = ({
             />
           </div>
 
-          {/* Section 2: Smart Fair-Pricing Engine */}
-          <div className="bg-white border border-[#E8DFC8] rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
-            <div className="text-center max-w-lg mx-auto space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F4A261]/15 text-[#D97706] text-xs font-bold mb-1">
-                <IndianRupee className="w-3.5 h-3.5" />
-                <span>AI Fair-Livelihood Algorithm</span>
-              </div>
-              <h3 className="text-xl sm:text-2xl font-extrabold text-[#2C241E]">
-                {getTranslation(currentLang, 'smartPricingTitle')}
-              </h3>
-              <p className="text-xs sm:text-sm text-brown">
-                {getTranslation(currentLang, 'smartPricingSubtitle')}
-              </p>
-            </div>
+          {/* Section 2: AI-Powered Pricing Suggestion Tool */}
+          <AIPricingTool
+            currentLang={currentLang}
+            productName={catalogData.name}
+            category={catalogData.category}
+            material={catalogData.material}
+            craftType={catalogData.craftType}
+            dimensions={catalogData.dimensions}
+            weight={catalogData.weight}
+            productionTime={catalogData.productionTime}
+            region={catalogData.region}
+            description={catalogData.description}
+            currentMaterialCost={materialCostInput}
+            currentLabourHours={labourHoursInput}
+            currentHourlyWage={hourlyWageInput}
+            currentOtherCost={otherCostInput}
+            onApplyPricing={handleApplyPricing}
+          />
 
-            {/* Price Recommendation Card */}
-            <div className="p-6 rounded-3xl bg-gradient-to-br from-ivory via-white to-[#F4EFEA] border-2 border-[#E07A5F]/40 shadow-md flex flex-col md:flex-row items-center justify-between gap-6 max-w-3xl mx-auto">
-              {/* Big Price Display */}
-              <div className="text-center md:text-left space-y-1">
-                <span className="text-xs font-bold text-[#7A6E65] uppercase tracking-wider block">
-                  {getTranslation(currentLang, 'recommendedPrice')}
-                </span>
-                <div className="flex items-baseline justify-center md:justify-start gap-1">
-                  <span className="text-4xl sm:text-5xl font-extrabold text-terracotta font-craft">
-                    ₹{catalogData.recommendedPrice.toLocaleString('en-IN')}
-                  </span>
-                </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-[#2D6A4F] bg-[#81B29A]/15 px-2.5 py-0.5 rounded-full">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {getTranslation(currentLang, 'highConfidence')}
-                </span>
-              </div>
+          {/* Navigation Buttons */}
+          <div className="flex items-center justify-between pt-4 bg-white border border-[#E8DFC8] p-5 rounded-3xl shadow-xs">
+            <button
+              onClick={() => setCurrentStep(4)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border border-[#E8DFC8] text-xs font-bold text-[#7A6E65] hover:bg-ivory cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </button>
 
-              {/* Fair Market Range */}
-              <div className="p-4 rounded-2xl bg-white border border-[#E8DFC8] text-center md:text-right space-y-1 shadow-xs">
-                <span className="text-xs font-bold text-[#7A6E65] block">
-                  {getTranslation(currentLang, 'suggestedRange')}
-                </span>
-                <span className="text-lg font-extrabold text-[#2C241E]">
-                  ₹{catalogData.priceRange.min.toLocaleString('en-IN')} — ₹
-                  {catalogData.priceRange.max.toLocaleString('en-IN')}
-                </span>
-                <p className="text-[11px] text-[#81B29A] font-semibold">
-                  Guarantees 35% artisan profit margin
-                </p>
-              </div>
-            </div>
-
-            {/* Transparent Cost Breakdown Calculator */}
-            <div className="max-w-3xl mx-auto space-y-3 pt-2">
-              <h4 className="text-xs font-bold text-[#7A6E65] uppercase tracking-wider">
-                Adjust Artisan Cost Inputs:
-              </h4>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {/* Material Cost */}
-                <div className="p-3 rounded-2xl bg-ivory border border-[#E8DFC8]">
-                  <label className="text-[11px] font-bold text-[#7A6E65] block mb-1">
-                    {getTranslation(currentLang, 'materialCost')}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#7A6E65]">₹</span>
-                    <input
-                      type="number"
-                      value={materialCostInput}
-                      onChange={(e) => setMaterialCostInput(Number(e.target.value) || 0)}
-                      className="w-full pl-6 pr-2 py-1.5 text-sm font-bold bg-white rounded-xl border border-[#E8DFC8] text-[#2C241E]"
-                    />
-                  </div>
-                </div>
-
-                {/* Crafting Hours */}
-                <div className="p-3 rounded-2xl bg-ivory border border-[#E8DFC8]">
-                  <label className="text-[11px] font-bold text-[#7A6E65] block mb-1">
-                    {getTranslation(currentLang, 'labourHours')}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={labourHoursInput}
-                      onChange={(e) => setLabourHoursInput(Number(e.target.value) || 0)}
-                      className="w-full px-3 py-1.5 text-sm font-bold bg-white rounded-xl border border-[#E8DFC8] text-[#2C241E]"
-                    />
-                  </div>
-                </div>
-
-                {/* Fair Hourly Wage */}
-                <div className="p-3 rounded-2xl bg-ivory border border-[#E8DFC8]">
-                  <label className="text-[11px] font-bold text-[#7A6E65] block mb-1">
-                    {getTranslation(currentLang, 'hourlyWage')}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#7A6E65]">₹</span>
-                    <input
-                      type="number"
-                      value={hourlyWageInput}
-                      onChange={(e) => setHourlyWageInput(Number(e.target.value) || 0)}
-                      className="w-full pl-6 pr-2 py-1.5 text-sm font-bold bg-white rounded-xl border border-[#E8DFC8] text-[#2C241E]"
-                    />
-                  </div>
-                </div>
-
-                {/* Packaging & Transport */}
-                <div className="p-3 rounded-2xl bg-ivory border border-[#E8DFC8]">
-                  <label className="text-[11px] font-bold text-[#7A6E65] block mb-1">
-                    {getTranslation(currentLang, 'otherCost')}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#7A6E65]">₹</span>
-                    <input
-                      type="number"
-                      value={otherCostInput}
-                      onChange={(e) => setOtherCostInput(Number(e.target.value) || 0)}
-                      className="w-full pl-6 pr-2 py-1.5 text-sm font-bold bg-white rounded-xl border border-[#E8DFC8] text-[#2C241E]"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-xs text-brown italic pt-1">
-                {catalogData.pricingRationale}
-              </p>
-            </div>
-
-            {/* Navigation Buttons */}
-            <div className="flex items-center justify-between pt-4 border-t border-[#E8DFC8]">
-              <button
-                onClick={() => setCurrentStep(4)}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border border-[#E8DFC8] text-xs font-bold text-[#7A6E65] hover:bg-ivory cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Back</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentStep(6)}
-                className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#E07A5F] to-terracotta hover:brightness-105 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer ml-auto"
-              >
-                <span>{getTranslation(currentLang, 'listingPreviewTitle')}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => setCurrentStep(6)}
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#E07A5F] to-terracotta hover:brightness-105 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer ml-auto"
+            >
+              <span>{getTranslation(currentLang, 'listingPreviewTitle')}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
@@ -1476,14 +1396,27 @@ export const AddProductWorkflow: React.FC<AddProductWorkflowProps> = ({
                     )}
                   </div>
 
-                  {/* Price Banner */}
-                  <div className="flex items-baseline gap-2 py-2 border-y border-[#E8DFC8]/60">
-                    <span className="text-3xl font-extrabold text-terracotta font-craft">
-                      ₹{catalogData.recommendedPrice.toLocaleString('en-IN')}
-                    </span>
-                    <span className="text-xs text-[#7A6E65]">
-                      (Fair Artisan Price • Free Shipping Eligible)
-                    </span>
+                  {/* Price Banner with AI Market Pricing Intelligence */}
+                  <div className="py-2.5 border-y border-[#E8DFC8]/60 space-y-1.5">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <span className="text-3xl font-extrabold text-terracotta font-craft">
+                        ₹{catalogData.recommendedPrice.toLocaleString('en-IN')}
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#81B29A]/20 text-[#2D6A4F]">
+                        <Sparkles className="w-3 h-3" />
+                        AI Market Fair-Price Verified
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-[#7A6E65]">
+                      <span>
+                        Range: <strong className="text-[#2C241E]">₹{catalogData.priceRange.min.toLocaleString('en-IN')} — ₹{catalogData.priceRange.max.toLocaleString('en-IN')}</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Wholesale Unit Rate (50+ pcs): <strong className="text-[#2D6A4F]">₹{Math.round((catalogData.recommendedPrice * 0.76) / 50) * 50}</strong>
+                      </span>
+                    </div>
                   </div>
 
                   {/* Description */}

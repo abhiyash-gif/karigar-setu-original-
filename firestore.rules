@@ -1,0 +1,132 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Default Deny Catch-All (Safety Net)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Hardened Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Connection test document probe for health checks
+    match /test/{docId} {
+      allow get: if true;
+    }
+
+    // 2. User Accounts (/users/{userId})
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email'])
+        && data.uid is string && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 256;
+    }
+
+    match /users/{userId} {
+      allow get, list: if isValidId(userId) && isOwner(userId);
+      allow create, update: if isValidId(userId) && isOwner(userId) && isValidUser(incoming());
+      allow delete: if isValidId(userId) && isOwner(userId);
+    }
+
+    // 3. Artisan Public Profiles (/artisanProfiles/{userId})
+    function isValidArtisanProfile(data) {
+      return data.keys().hasAll(['userId', 'name'])
+        && data.userId is string && data.userId.size() <= 128
+        && data.name is string && data.name.size() <= 150;
+    }
+
+    match /artisanProfiles/{userId} {
+      allow get: if isValidId(userId);
+      allow list: if true;
+      allow create, update: if isValidId(userId) && isOwner(userId) && isValidArtisanProfile(incoming());
+      allow delete: if isValidId(userId) && isOwner(userId);
+    }
+
+    // 4. Products Catalog (/products/{productId})
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'userId', 'name', 'price', 'stock'])
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.price is number && data.price >= 0
+        && data.stock is number && data.stock >= 0;
+    }
+
+    match /products/{productId} {
+      allow get: if isValidId(productId);
+      allow list: if true;
+      allow create: if isValidId(productId) && isSignedIn()
+        && incoming().userId == request.auth.uid
+        && isValidProduct(incoming());
+      allow update: if isValidId(productId) && isSignedIn()
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && isValidProduct(incoming());
+      allow delete: if isValidId(productId) && isSignedIn()
+        && existing().userId == request.auth.uid;
+    }
+
+    // 5. Buyer Enquiries (/buyerEnquiries/{enquiryId})
+    function isValidBuyerEnquiry(data) {
+      return data.keys().hasAll(['id', 'userId', 'productId', 'buyerName', 'quantityRequested', 'status'])
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.productId is string && data.productId.size() <= 128
+        && data.buyerName is string && data.buyerName.size() <= 150
+        && data.quantityRequested is number && data.quantityRequested > 0
+        && data.status in ['Pending', 'Responded', 'Accepted', 'Declined'];
+    }
+
+    match /buyerEnquiries/{enquiryId} {
+      allow get: if isValidId(enquiryId) && isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(enquiryId) && isSignedIn() && isValidBuyerEnquiry(incoming());
+      allow update: if isValidId(enquiryId) && isSignedIn()
+        && existing().userId == request.auth.uid
+        && isValidBuyerEnquiry(incoming());
+      allow delete: if isValidId(enquiryId) && isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // 6. Notifications & Restock Alerts (/notifications/{notificationId})
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'message', 'read', 'type'])
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.message is string && data.message.size() <= 1000
+        && data.read is bool
+        && data.type in ['order', 'enquiry', 'listing', 'tip', 'pricing', 'restock'];
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(notificationId) && isSignedIn()
+        && incoming().userId == request.auth.uid
+        && isValidNotification(incoming());
+      allow update: if isValidId(notificationId) && isSignedIn()
+        && existing().userId == request.auth.uid
+        && isValidNotification(incoming());
+      allow delete: if isValidId(notificationId) && isSignedIn() && existing().userId == request.auth.uid;
+    }
+  }
+}

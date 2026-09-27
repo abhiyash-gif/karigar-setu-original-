@@ -1,0 +1,387 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered artisan or buyer user record",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name",
+          "maxLength": 128
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User avatar photo URL",
+          "maxLength": 1024
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user",
+          "enum": ["artisan", "buyer", "admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of account creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of account update"
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Artisan product item catalog",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique product ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Artisan owner UID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Product title in English",
+          "maxLength": 200
+        },
+        "hindiName": {
+          "type": "string",
+          "description": "Product title in Hindi",
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "description": "Craft category",
+          "maxLength": 100
+        },
+        "material": {
+          "type": "string",
+          "description": "Raw material details",
+          "maxLength": 200
+        },
+        "craftType": {
+          "type": "string",
+          "description": "Craft technique",
+          "maxLength": 150
+        },
+        "colour": {
+          "type": "string",
+          "description": "Product colour shade",
+          "maxLength": 100
+        },
+        "dimensions": {
+          "type": "string",
+          "description": "Physical dimensions",
+          "maxLength": 100
+        },
+        "weight": {
+          "type": "string",
+          "description": "Weight specification",
+          "maxLength": 50
+        },
+        "productionTime": {
+          "type": "string",
+          "description": "Time needed to handcraft",
+          "maxLength": 100
+        },
+        "region": {
+          "type": "string",
+          "description": "Craft origin region",
+          "maxLength": 150
+        },
+        "handmade": {
+          "type": "boolean",
+          "description": "Handmade flag"
+        },
+        "giTagged": {
+          "type": "boolean",
+          "description": "GI certification status"
+        },
+        "shortDescription": {
+          "type": "string",
+          "description": "One sentence summary",
+          "maxLength": 300
+        },
+        "description": {
+          "type": "string",
+          "description": "Full marketing story and product description",
+          "maxLength": 4000
+        },
+        "price": {
+          "type": "number",
+          "description": "Listing price in INR"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status",
+          "enum": ["Published", "Draft", "Under Review"]
+        },
+        "views": {
+          "type": "number",
+          "description": "Number of buyer views"
+        },
+        "enquiries": {
+          "type": "number",
+          "description": "Number of enquiries"
+        },
+        "image": {
+          "type": "string",
+          "description": "Main product image URL",
+          "maxLength": 2048
+        },
+        "stock": {
+          "type": "number",
+          "description": "Available inventory units"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation date"
+        }
+      },
+      "required": ["id", "userId", "name", "price", "stock"]
+    },
+    "BuyerEnquiry": {
+      "title": "BuyerEnquiry",
+      "description": "Trade enquiry or B2B order request from buyer",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique enquiry ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Artisan UID who received enquiry",
+          "maxLength": 128
+        },
+        "productId": {
+          "type": "string",
+          "description": "Target product ID",
+          "maxLength": 128
+        },
+        "productName": {
+          "type": "string",
+          "description": "Target product title",
+          "maxLength": 200
+        },
+        "buyerName": {
+          "type": "string",
+          "description": "Name of buyer or retail company",
+          "maxLength": 150
+        },
+        "buyerType": {
+          "type": "string",
+          "description": "Buyer classification",
+          "enum": ["Retail Buyer", "B2B Wholesale", "Government / TRIFED", "Exhibition Curator", "Export House"]
+        },
+        "buyerLocation": {
+          "type": "string",
+          "description": "Buyer city and state",
+          "maxLength": 150
+        },
+        "quantityRequested": {
+          "type": "number",
+          "description": "Number of units requested"
+        },
+        "offeredPricePerUnit": {
+          "type": "number",
+          "description": "Proposed purchase price"
+        },
+        "message": {
+          "type": "string",
+          "description": "Buyer order message",
+          "maxLength": 2000
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of enquiry"
+        },
+        "status": {
+          "type": "string",
+          "description": "Enquiry response state",
+          "enum": ["Pending", "Responded", "Accepted", "Declined"]
+        },
+        "verifiedBadge": {
+          "type": "boolean",
+          "description": "Verified buyer status"
+        }
+      },
+      "required": ["id", "userId", "productId", "buyerName", "quantityRequested", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or trade notification for artisan",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique notification ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Target recipient UID",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Notification title",
+          "maxLength": 200
+        },
+        "hindiTitle": {
+          "type": "string",
+          "description": "Notification title in Hindi",
+          "maxLength": 200
+        },
+        "message": {
+          "type": "string",
+          "description": "Notification message body",
+          "maxLength": 1000
+        },
+        "time": {
+          "type": "string",
+          "description": "Human readable time",
+          "maxLength": 100
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Whether read by artisan"
+        },
+        "type": {
+          "type": "string",
+          "description": "Category of alert",
+          "enum": ["order", "enquiry", "listing", "tip", "pricing", "restock"]
+        },
+        "actionUrl": {
+          "type": "string",
+          "description": "Deep link tab destination",
+          "maxLength": 100
+        }
+      },
+      "required": ["id", "userId", "title", "message", "read", "type"]
+    },
+    "ArtisanProfile": {
+      "title": "ArtisanProfile",
+      "description": "Master artisan biographical and verification record",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Artisan UID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Artisan full name",
+          "maxLength": 150
+        },
+        "hindiName": {
+          "type": "string",
+          "description": "Artisan name in Hindi",
+          "maxLength": 150
+        },
+        "craftCategory": {
+          "type": "string",
+          "description": "Primary craft cluster",
+          "maxLength": 150
+        },
+        "region": {
+          "type": "string",
+          "description": "Region cluster",
+          "maxLength": 150
+        },
+        "district": {
+          "type": "string",
+          "description": "Home district",
+          "maxLength": 100
+        },
+        "state": {
+          "type": "string",
+          "description": "Home state",
+          "maxLength": 100
+        },
+        "experienceYears": {
+          "type": "number",
+          "description": "Years practicing craft"
+        },
+        "artisanCardNumber": {
+          "type": "string",
+          "description": "Pehchan Govt ID",
+          "maxLength": 100
+        },
+        "giRecognition": {
+          "type": "boolean",
+          "description": "GI recognition status"
+        },
+        "about": {
+          "type": "string",
+          "description": "Bio and craft lineage",
+          "maxLength": 2000
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone",
+          "maxLength": 50
+        },
+        "profilePhoto": {
+          "type": "string",
+          "description": "Profile picture URL",
+          "maxLength": 2048
+        },
+        "bankAccountLinked": {
+          "type": "boolean",
+          "description": "Direct DBT linkage"
+        },
+        "totalProductsSold": {
+          "type": "number",
+          "description": "Total sales volume"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Craftsmanship rating"
+        }
+      },
+      "required": ["userId", "name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile document isolated per UID"
+    },
+    "/artisanProfiles/{userId}": {
+      "schema": "ArtisanProfile",
+      "description": "Public craft profile for artisan"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Product listings for marketplace and inventory"
+    },
+    "/buyerEnquiries/{enquiryId}": {
+      "schema": "BuyerEnquiry",
+      "description": "Buyer inquiries routed to artisan"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Notifications and restock alerts per artisan"
+    }
+  }
+}

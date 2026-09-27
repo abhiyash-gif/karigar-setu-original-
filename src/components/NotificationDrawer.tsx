@@ -9,7 +9,8 @@ import {
   Sparkles, 
   Check, 
   ChevronRight,
-  Clock
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 
 interface NotificationDrawerProps {
@@ -81,7 +82,12 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
             </div>
           ) : (
             notifications.map((notif) => {
+              const isRestock = notif.type === 'restock' || notif.title.toLowerCase().includes('restock');
+
               const getIcon = () => {
+                if (isRestock) {
+                  return <AlertTriangle className="w-4 h-4 text-amber-600" />;
+                }
                 switch (notif.type) {
                   case 'enquiry':
                   case 'order':
@@ -105,24 +111,33 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                     }
                   }}
                   className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                    !notif.read
+                    isRestock
+                      ? 'bg-amber-50/70 border-amber-300 hover:bg-amber-50 shadow-xs ring-1 ring-amber-400/20'
+                      : !notif.read
                       ? 'bg-white border-[#E07A5F]/40 shadow-xs ring-1 ring-[#E07A5F]/15'
                       : 'bg-ivory hover:bg-white border-[#E8DFC8]'
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl bg-ivory border border-[#E8DFC8]">
+                    <div className={`p-2 rounded-xl border ${isRestock ? 'bg-amber-100 border-amber-200' : 'bg-ivory border-[#E8DFC8]'}`}>
                       {getIcon()}
                     </div>
 
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-[#2C241E]">
-                          {currentLang === 'hi' && notif.hindiTitle
-                            ? notif.hindiTitle
-                            : notif.title}
-                        </h4>
-                        <span className="text-[10px] text-[#9C8E84] flex items-center gap-0.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="text-xs font-bold text-[#2C241E]">
+                            {currentLang === 'hi' && notif.hindiTitle
+                              ? notif.hindiTitle
+                              : notif.title}
+                          </h4>
+                          {isRestock && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-200/80 text-amber-800 tracking-wide uppercase">
+                              Restock Needed
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-[#9C8E84] flex items-center gap-0.5 whitespace-nowrap">
                           <Clock className="w-2.5 h-2.5" />
                           {notif.time}
                         </span>
@@ -133,8 +148,8 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
                       </p>
 
                       {notif.actionUrl && (
-                        <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-[#E07A5F]">
-                          <span>Take action</span>
+                        <div className={`mt-2 flex items-center gap-1 text-[11px] font-bold ${isRestock ? 'text-amber-700' : 'text-[#E07A5F]'}`}>
+                          <span>{isRestock ? 'Update Stock / Inventory' : 'Take action'}</span>
                           <ChevronRight className="w-3 h-3" />
                         </div>
                       )}
